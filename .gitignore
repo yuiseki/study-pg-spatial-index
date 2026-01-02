@@ -1,0 +1,9 @@
+var/
+data/osm/extract
+!data/osm/extract/.gitkeep
+
+results/
+!results/postgis-gist/.gitkeep
+!results/postgis-spgist/.gitkeep
+!results/postgis-brin/.gitkeep
+!results/h3/.gitkeep

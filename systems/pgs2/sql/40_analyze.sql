@@ -1,0 +1,1 @@
+ANALYZE planet_osm_point_s2;

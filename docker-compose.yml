@@ -1,0 +1,165 @@
+services:
+  x-postgis-base: &postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - ./common/sql:/docker-entrypoint-initdb.d/10_common
+      - ./data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgis-gist:
+    <<: *postgis_base
+    image: study-pg-spatial-index:postgis-gist
+    container_name: study-pg-spatial-index-postgis-gist
+    profiles: ["postgis-gist"]
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./var/postgis-gist:/var/lib/postgresql/data
+      - ./systems/postgis-gist/sql:/docker-entrypoint-initdb.d/20_system
+
+  postgis-spgist:
+    <<: *postgis_base
+    image: study-pg-spatial-index:postgis-spgist
+    container_name: study-pg-spatial-index-postgis-spgist
+    profiles: ["postgis-spgist"]
+    ports:
+      - "${POSTGIS_SPGIST_PORT:-55433}:5432"
+    volumes:
+      - ./var/postgis-spgist:/var/lib/postgresql/data
+      - ./systems/postgis-spgist/sql:/docker-entrypoint-initdb.d/20_system
+
+  postgis-brin:
+    <<: *postgis_base
+    image: study-pg-spatial-index:postgis-brin
+    container_name: study-pg-spatial-index-postgis-brin
+    profiles: ["postgis-brin"]
+    ports:
+      - "${POSTGIS_BRIN_PORT:-55434}:5432"
+    volumes:
+      - ./var/postgis-brin:/var/lib/postgresql/data
+      - ./systems/postgis-brin/sql:/docker-entrypoint-initdb.d/20_system
+
+  h3:
+    <<: *postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+        WITH_H3: "1"
+    image: study-pg-spatial-index:h3
+    container_name: study-pg-spatial-index-h3
+    profiles: ["h3"]
+    ports:
+      - "${H3_PORT:-55435}:5432"
+    volumes:
+      - ./var/h3:/var/lib/postgresql/data
+      - ./systems/h3/sql:/docker-entrypoint-initdb.d/20_system
+
+  q3c:
+    <<: *postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+        WITH_Q3C: "1"
+    image: study-pg-spatial-index:q3c
+    container_name: study-pg-spatial-index-q3c
+    profiles: ["q3c"]
+    ports:
+      - "${Q3C_PORT:-55439}:5432"
+    volumes:
+      - ./var/q3c:/var/lib/postgresql/data
+      - ./systems/q3c/sql:/docker-entrypoint-initdb.d/20_system
+
+  healpix:
+    <<: *postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+        WITH_PG_HEALPIX: "1"
+    image: study-pg-spatial-index:healpix
+    container_name: study-pg-spatial-index-healpix
+    profiles: ["healpix"]
+    ports:
+      - "${HEALPIX_PORT:-55440}:5432"
+    volumes:
+      - ./var/healpix:/var/lib/postgresql/data
+      - ./systems/healpix/sql:/docker-entrypoint-initdb.d/20_system
+
+  pgsphere:
+    <<: *postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+        WITH_PGSPHERE: "1"
+    image: study-pg-spatial-index:pgsphere
+    container_name: study-pg-spatial-index-pgsphere
+    profiles: ["pgsphere"]
+    ports:
+      - "${PGSPHERE_PORT:-55441}:5432"
+    volumes:
+      - ./var/pgsphere:/var/lib/postgresql/data
+      - ./systems/pgsphere/sql:/docker-entrypoint-initdb.d/20_system
+
+  pgs2:
+    <<: *postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+        WITH_PGS2: "1"
+    image: study-pg-spatial-index:pgs2
+    container_name: study-pg-spatial-index-pgs2
+    profiles: ["pgs2"]
+    ports:
+      - "${PGS2_PORT:-55438}:5432"
+    volumes:
+      - ./var/pgs2:/var/lib/postgresql/data
+      - ./systems/pgs2/sql:/docker-entrypoint-initdb.d/20_system
+
+  postgis-geohash:
+    <<: *postgis_base
+    image: study-pg-spatial-index:postgis-geohash
+    container_name: study-pg-spatial-index-postgis-geohash
+    profiles: ["postgis-geohash"]
+    ports:
+      - "${POSTGIS_GEOHASH_PORT:-55436}:5432"
+    volumes:
+      - ./var/postgis-geohash:/var/lib/postgresql/data
+      - ./systems/postgis-geohash/sql:/docker-entrypoint-initdb.d/20_system
+
+  pg-geohash:
+    <<: *postgis_base
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_VERSION: ${PG_VERSION:-17}
+        WITH_PG_GEOHASH: "1"
+    image: study-pg-spatial-index:pg-geohash
+    container_name: study-pg-spatial-index-pg-geohash
+    profiles: ["pg-geohash"]
+    ports:
+      - "${PG_GEOHASH_PORT:-55437}:5432"
+    volumes:
+      - ./var/pg-geohash:/var/lib/postgresql/data
+      - ./systems/pg-geohash/sql:/docker-entrypoint-initdb.d/20_system

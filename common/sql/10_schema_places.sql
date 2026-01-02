@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS places (
+  id TEXT PRIMARY KEY,
+  geom geometry(Point, 4326) NOT NULL,
+  lon DOUBLE PRECISION,
+  lat DOUBLE PRECISION,
+  props JSONB
+);
