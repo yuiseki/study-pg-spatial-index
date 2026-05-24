@@ -1,5 +1,31 @@
 # 3D-ish Route Benchmark
 
+## 結論
+
+zfxy の `f` 次元は、理屈の上では存在する。
+
+しかし `f = floor(2^z * h / 2^25)` という式の構造上、
+**水平解像度（x/y の細かさ）と垂直解像度（f の細かさ）を独立に設計できない。**
+`z` を上げると x/y セルも一緒に細かくなり、
+per-floor 粒度 (~3 m) を得るには z≥24 が必要だが、
+そのとき x/y セルは赤道換算で ~1 m 角になる。
+
+都市部のような密集エリアでは、現実的な zoom level（z=17–19）で
+建物の 99% 以上が f=0 に収まってしまい、
+3D セルテーブルは実質 2D と等価になる。
+
+さらに、PostGIS GiST が利用可能な環境では
+プランナーは常に geometry 列のインデックスを選択し、
+zfxy B-tree の f/x/y 条件は Join Filter（後付けチェック）に格下げされる。
+
+**「zfxy は 3D に見えるが、3D クエリキーとしてはかなり不器用。**
+**PostGIS GiST + numeric height range が使える環境では、zfxy 3D B-tree に明確な競争優位はない。」**
+
+zfxy が活きる可能性があるのは、GiST を持たない純 B-tree 環境
+（外部キーバリューストア、列指向 DB、ファイルベース tile index など）に限られる。
+
+---
+
 既存の 2D zfxy / PostGIS / H3 / GeoHash / Q3C / HEALPix ベンチとは **独立した別系統** のベンチです。
 既存の `common/bench/`・`systems/*/bench/`・`make bench-*` は変更していません。
 
