@@ -114,5 +114,51 @@ make bench-postgis-gist
 - `pg_geohash` は PostgreSQL 17 向けに軽微なパッチを当ててビルドしています。
 - `results/` は巨大になりやすいので、必要に応じて整理してください。
 
+## 実測結果（zfxy 比較）
+
+データ: OSM 台東区（点 25,833件 / 面 39,059件）、PostgreSQL 17、JIT off、ウォームキャッシュ。  
+クエリ: 中心点 (139.777, 35.713)、半径 1km、LIMIT 100。
+
+### radius 検索（1km）— 横断比較
+
+| 方式 | 候補行数 | 実結果 | FP 率 | 実行時間 | 備考 |
+|---|---|---|---|---|---|
+| PostGIS GiST | 148 | 100 | 32% | **0.17ms** | GiST bbox scan + geography recheck |
+| H3 res=9, grid_disk k=3 | 183 | 100 | 0% | 0.65ms | 37 cells、FP なし |
+| zfxy z=19 | 142 | 100 | 30% | 0.37ms | 28×33 tile range |
+| zfxy z=17 | 289 | 100 | 65% | 0.74ms | 8×9 tile range |
+| zfxy z=15 | 982 | 100 | 90% | 10.6ms | 3×3 tile range（台東区全域 ≈ 9 タイル）|
+| GeoHash prec=7 | ~25,833 | 85 | — | 6.6ms | LIKE prefix が seq scan にフォールバック |
+
+**結論: GiST が最速。zfxy z=19 は H3 より速いが GiST には 2倍差がある。z=15 は台東区規模の dense urban では事実上無効（全件スキャン相当）。**
+
+### zfxy resolution sweep（radius 1km、full scan、LIMIT なし）
+
+| z | タイル幅 | 候補数 | 実数 | FP 率 |
+|---|---|---|---|---|
+| 15 | 3×3 | 16,670 | 10,755 | 35.5% |
+| 16 | 5×5 | 16,102 | 10,755 | 33.2% |
+| 17 | 8×9 | 13,938 | 10,630 | 23.7% |
+| 18 | 15×17 | 12,907 | 10,616 | 17.8% |
+| 19 | 28×33 | 11,803 | 10,327 | 12.5% |
+
+FP 率は解像度を上げるほど改善するが、z=19 でも 12.5% 残る（タイルが正方形のため円とのズレが消えない）。
+
+### 全クエリタイプ比較（zfxy z=15、JIT off、ウォーム）
+
+| クエリ | 実行時間 | planner の選択 | 備考 |
+|---|---|---|---|
+| points / viewport | 0.5ms | GiST primary、zfxy は後フィルタ | GiST に完全制圧 |
+| points / radius | 0.74ms（z=17）| zfxy tile range primary | 唯一 zfxy が主ドライバ |
+| points / kNN | 0.6ms | GiST `<->` primary、zfxy 無視 | tile 拡張アプローチは使われない |
+| polygons / viewport | 1.7ms | cover-first join | join 方向を誤ると 20秒（→後述）|
+| polygons / PIP | 0.2ms | GiST primary（z=17）| zfxy は後フィルタ |
+
+### polygon cover の注意点
+
+- **join 方向の罠**: `polygon GiST → cover table` の順で書くと、台東区の場合 9,781ポリゴン × 19,027 cover行 = 1.86億行フィルタになり 20秒。`cover table → polygon` の順（cover-first）で 1.7ms。
+- **bbox cover vs H3 polyfill**: zfxy の polygon cover は bbox タイルを全列挙するだけで、H3 `h3_polygon_to_cells` のような strict polygon cover ではない。台東区 z=15 では 1 タイルあたり最大 1,329件のポリゴンが候補になり、PIP の false positive は 266倍。
+- **都市部での有効解像度**: z=15 は台東区全体が約 8タイルに収まるため B-tree filter が無効化される。z=17（~305m/tile）以上が実用最低ライン。
+
 ## 参考
 - 実験の意図や比較観点は `TODO.md` に詳しく記載されています。

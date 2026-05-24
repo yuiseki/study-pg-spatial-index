@@ -12,13 +12,16 @@
 -- ----------------------------------------------------------------
 -- Points
 -- ----------------------------------------------------------------
+-- Composite PK (osm_id, resolution) to support multi-resolution population.
+-- Single-resolution systems like H3 use osm_id as PK; zfxy supports sweep.
 CREATE TABLE IF NOT EXISTS planet_osm_point_zfxy (
-  osm_id     BIGINT  PRIMARY KEY,
+  osm_id     BIGINT  NOT NULL,
   resolution INTEGER NOT NULL,
   f          BIGINT  NOT NULL,
   x          BIGINT  NOT NULL,
   y          BIGINT  NOT NULL,
-  cell_id    TEXT    NOT NULL
+  cell_id    TEXT    NOT NULL,
+  PRIMARY KEY (osm_id, resolution)
 );
 
 DELETE FROM planet_osm_point_zfxy WHERE resolution = :resolution;
@@ -38,12 +41,11 @@ SELECT
   )                                                                 AS cell_id
 FROM planet_osm_point
 WHERE way IS NOT NULL
-ON CONFLICT (osm_id) DO UPDATE
-  SET resolution = EXCLUDED.resolution,
-      f          = EXCLUDED.f,
-      x          = EXCLUDED.x,
-      y          = EXCLUDED.y,
-      cell_id    = EXCLUDED.cell_id;
+ON CONFLICT (osm_id, resolution) DO UPDATE
+  SET f       = EXCLUDED.f,
+      x       = EXCLUDED.x,
+      y       = EXCLUDED.y,
+      cell_id = EXCLUDED.cell_id;
 
 -- ----------------------------------------------------------------
 -- Polygons  (bbox tile cover, f = 0)
