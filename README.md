@@ -160,5 +160,55 @@ FP 率は解像度を上げるほど改善するが、z=19 でも 12.5% 残る�
 - **bbox cover vs H3 polyfill**: zfxy の polygon cover は bbox タイルを全列挙するだけで、H3 `h3_polygon_to_cells` のような strict polygon cover ではない。台東区 z=15 では 1 タイルあたり最大 1,329件のポリゴンが候補になり、PIP の false positive は 266倍。
 - **都市部での有効解像度**: z=15 は台東区全体が約 8タイルに収まるため B-tree filter が無効化される。z=17（~305m/tile）以上が実用最低ライン。
 
+## 3D-ish route benchmark（`experiments/3d-route/`）
+
+既存の 2D ベンチとは独立した別系統です。既存の `make bench-*` は変更していません。
+
+**背景**: 既存の zfxy 比較は `h=0` / `f=0` 固定の 2D-ish ベンチ。次の問いを実測で答えます。
+
+> zfxy の `f` 次元（高さ方向）を導入すると、普通の PostGIS GiST + 数値 height range filter と比べて何が変わるか？
+
+### zfxy f 次元の粒度問題（構造的制約）
+
+`f = floor(2^z * h / 2^25)` — z=19 では 64 m/f-unit。台東区の建物:
+
+| f | 建物数 | 高さ帯 |
+|---|--------|--------|
+| 0 | 36,521 (99.7%) | 0–63 m |
+| 1 | 12 | 64–127 m |
+| 2 | 1 | 128–191 m |
+
+**z=17–18 では全建物 f=0。z=19 でも 99.7% が f=0。** per-floor 粒度 (~3 m) には z≥24 が必要。
+
+### corridor 候補数（台東区南北 100m 幅 corridor, z=19）
+
+| alt (m) | height range | f_min | f_max | baseline_bbox_cands | baseline_actual | zfxy_cell_cands |
+|---------|-------------|-------|-------|---------------------|-----------------|-----------------|
+| 30 | 25–35 m | 0 | 0 | 1,884 | 16 | 3,183 |
+| 60 | 55–65 m | 0 | 1 | 1,884 | 1 | 3,183 |
+| 90 | 85–95 m | 1 | 1 | 1,884 | 0 | **1** |
+| 120 | 115–125 m | 1 | 1 | 1,884 | 0 | **1** |
+
+alt=90 m では zfxy f=1 フィルタで 1 件のみ（baseline は 1,884 bbox 候補を全件スキャン）。
+しかし **プランナーは GiST を選択し、zfxy B-tree を採用しない**。
+
+### 実行時間（warm cache, JIT off）
+
+| method | alt (m) | exec (ms) | shared_hits |
+|--------|---------|-----------|-------------|
+| baseline (GiST + height range) | 30 | 0.88 | 1,582 |
+| baseline | 90 | 0.97 | 1,582 |
+| zfxy_3d (z=19) | 30 | 1.58 | 3,346 |
+| zfxy_3d (z=19) | 90 | 1.47 | 3,086 |
+
+### 結論
+
+1. **zfxy 3D B-tree は PostGIS GiST が使える環境では competitive advantage を持たない。** プランナーは全 altitude で GiST を選択し、f/x/y 条件を Join Filter（後付け）として扱う。
+2. **f 次元の粒度が粗すぎる。** z=19 で 64 m/f-unit。台東区建物の 99.7% が f=0 となり、3D セルテーブルは実質 2D テーブルと等価になる。
+3. **baseline（PostGIS GiST + numeric height range）が最適。** 最もシンプルで、execution time も buffer count も最小。
+4. **zfxy 3D が有効になる可能性があるのは**: PostGIS GiST がない純 B-tree 環境、z≥21 かつ高層ビルが多いエリア、のいずれかに限られる。
+
+詳細は `experiments/3d-route/README.md` を参照してください。
+
 ## 参考
 - 実験の意図や比較観点は `TODO.md` に詳しく記載されています。

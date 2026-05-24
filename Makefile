@@ -91,3 +91,34 @@ up-zfxy:
 .PHONY: bench-zfxy
 bench-zfxy:
 	common/scripts/run_bench.sh zfxy
+
+# -----------------------------------------------------------------------
+# 3D-ish route benchmark (separate from 2D spatial index comparison)
+#   Target: zfxy container (PostGIS + zfxy functions), default port 55442
+#   Override: make bench3d-route PGPORT=55442
+# -----------------------------------------------------------------------
+BENCH3D_PGPORT ?= 55442
+
+.PHONY: bench3d-route
+bench3d-route:
+	PGHOST="$(PGHOST)" PGPORT="$(BENCH3D_PGPORT)" \
+	PGDATABASE="$(PGDATABASE)" PGUSER="$(PGUSER)" PGPASSWORD="$(PGPASSWORD)" \
+	experiments/3d-route/scripts/run_3d_route_bench.sh
+
+.PHONY: bench3d-route-baseline
+bench3d-route-baseline:
+	PGHOST="$(PGHOST)" PGPORT="$(BENCH3D_PGPORT)" \
+	PGDATABASE="$(PGDATABASE)" PGUSER="$(PGUSER)" PGPASSWORD="$(PGPASSWORD)" \
+	common/scripts/explain.sh \
+	    experiments/3d-route/bench/baseline_corridor.sql \
+	    /dev/stdout \
+	    altitude_m=30 clearance_m=5
+
+.PHONY: bench3d-route-zfxy
+bench3d-route-zfxy:
+	PGHOST="$(PGHOST)" PGPORT="$(BENCH3D_PGPORT)" \
+	PGDATABASE="$(PGDATABASE)" PGUSER="$(PGUSER)" PGPASSWORD="$(PGPASSWORD)" \
+	common/scripts/explain.sh \
+	    experiments/3d-route/bench/zfxy_corridor.sql \
+	    /dev/stdout \
+	    altitude_m=30 clearance_m=5 resolution=19
