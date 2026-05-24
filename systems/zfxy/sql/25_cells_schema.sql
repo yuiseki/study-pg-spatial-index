@@ -72,14 +72,7 @@ CREATE TABLE IF NOT EXISTS planet_osm_polygon_zfxy (
 DELETE FROM planet_osm_polygon_zfxy WHERE resolution = :resolution;
 
 INSERT INTO planet_osm_polygon_zfxy (osm_id, resolution, f, x, y, cell_id)
-SELECT
-  poly.osm_id,
-  :resolution                              AS resolution,
-  0::BIGINT                                AS f,
-  tx.x,
-  ty.y,
-  zfxy_cell_text(:resolution, 0::BIGINT, tx.x, ty.y) AS cell_id
-FROM (
+WITH bbox AS (
   SELECT
     osm_id,
     zfxy_x(ST_XMin(way), :resolution) AS x_min,
@@ -89,9 +82,20 @@ FROM (
     zfxy_y(ST_YMin(way), :resolution) AS y_max
   FROM planet_osm_polygon
   WHERE way IS NOT NULL
-) poly
+),
 -- Safety cap: skip bbox covers that would expand to > 100 tiles
-WHERE (poly.x_max - poly.x_min + 1) * (poly.y_max - poly.y_min + 1) <= 100
-CROSS JOIN LATERAL generate_series(poly.x_min, poly.x_max) AS tx(x)
-CROSS JOIN LATERAL generate_series(poly.y_min, poly.y_max) AS ty(y)
+filtered AS (
+  SELECT * FROM bbox
+  WHERE (x_max - x_min + 1) * (y_max - y_min + 1) <= 100
+)
+SELECT
+  f.osm_id,
+  :resolution                                        AS resolution,
+  0::BIGINT                                          AS f,
+  tx.x,
+  ty.y,
+  zfxy_cell_text(:resolution, 0::BIGINT, tx.x, ty.y) AS cell_id
+FROM filtered f
+CROSS JOIN LATERAL generate_series(f.x_min, f.x_max) AS tx(x)
+CROSS JOIN LATERAL generate_series(f.y_min, f.y_max) AS ty(y)
 ON CONFLICT (osm_id, cell_id) DO NOTHING;

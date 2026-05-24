@@ -1,13 +1,17 @@
 -- zfxy: Polygons — Viewport / BBox search
 --
 -- Strategy:
---   1. Compute the tile (x, y) range that covers the query bbox.
---   2. Look up matching tiles in planet_osm_polygon_zfxy (B-tree range scan).
---   3. Recheck with PostGIS && and ST_Intersects.
+--   1. Compute tile (x, y) range covering the query bbox.
+--   2. Scan planet_osm_polygon_zfxy for cells in that range (B-tree).
+--      Driving from the cover table avoids a cartesian-like loop that occurs
+--      when the polygon GiST scan is used as the outer side.
+--   3. Join to planet_osm_polygon on osm_id (PK lookup per candidate).
+--   4. Recheck with PostGIS && and ST_Intersects to eliminate false positives
+--      introduced by the bbox cover.
 --
--- False-positive rate is higher than H3/S2 polyfill because the polygon
--- cover table was built from bbox tiles, not strict polygon tiles.
--- Recheck (step 3) eliminates false positives from both sources.
+-- NOTE: At z=15, Taito-ku fits in ~8 tiles, so the tile range matches almost
+-- all rows in the cover table.  Use z=17 or higher for useful selectivity in
+-- dense urban areas.
 --
 -- Variables (psql):
 --   \set minx 139.77
@@ -19,27 +23,25 @@
 
 \set resolution 15
 
-WITH params AS (
-  SELECT ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326) AS geom
-),
-tile_range AS (
+WITH tile_range AS (
   SELECT
     zfxy_x(:minx::double precision, :resolution) AS x_min,
     zfxy_x(:maxx::double precision, :resolution) AS x_max,
     zfxy_y(:maxy::double precision, :resolution) AS y_min,
-    zfxy_y(:miny::double precision, :resolution) AS y_max
+    zfxy_y(:miny::double precision, :resolution) AS y_max,
+    ST_MakeEnvelope(:minx, :miny, :maxx, :maxy, 4326) AS geom
 )
 SELECT DISTINCT
   p.osm_id,
   p.way,
   p.name
-FROM planet_osm_polygon p
+FROM tile_range tr
 JOIN planet_osm_polygon_zfxy z
+  ON z.resolution = :resolution
+ AND z.x BETWEEN tr.x_min AND tr.x_max
+ AND z.y BETWEEN tr.y_min AND tr.y_max
+JOIN planet_osm_polygon p
   ON p.osm_id = z.osm_id
- AND z.resolution = :resolution
-JOIN tile_range tr ON true
-WHERE z.x BETWEEN tr.x_min AND tr.x_max
-  AND z.y BETWEEN tr.y_min AND tr.y_max
-  AND p.way && (SELECT geom FROM params)
-  AND ST_Intersects(p.way, (SELECT geom FROM params))
+ AND p.way && tr.geom
+ AND ST_Intersects(p.way, tr.geom)
 LIMIT :limit;
