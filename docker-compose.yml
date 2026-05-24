@@ -163,3 +163,14 @@ services:
     volumes:
       - ./var/pg-geohash:/var/lib/postgresql/data
       - ./systems/pg-geohash/sql:/docker-entrypoint-initdb.d/20_system
+
+  zfxy:
+    <<: *postgis_base
+    image: study-pg-spatial-index:zfxy
+    container_name: study-pg-spatial-index-zfxy
+    profiles: ["zfxy"]
+    ports:
+      - "${ZFXY_PORT:-55442}:5432"
+    volumes:
+      - ./var/zfxy:/var/lib/postgresql/data
+      - ./systems/zfxy/sql:/docker-entrypoint-initdb.d/20_system

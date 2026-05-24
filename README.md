@@ -9,6 +9,15 @@ PostgreSQL で使える複数の空間インデックス方式を、同一デー
 
 詳細な方針は `TODO.md` を参照してください。
 
+## zfxy について
+
+`systems/zfxy/` は、[zfxy](https://github.com/unvt/zfxy-spec) を **PostGIS の空間 AM ではなく、セル ID 列 + 通常インデックス（B-tree）による空間キー設計** として追加したものです。
+
+- この比較の目的は zfxy を否定または称賛することではありません。既存手法（PostGIS / H3 / GeoHash / Q3C / HEALPix）と同じ土俵に載せ、`EXPLAIN (ANALYZE, BUFFERS)` で差分を実測できるようにすることです。
+- **MVP では高さ `h = 0` を固定し、`f = 0` として扱います。** これは 3D 性能の比較ではなく、zfxy を PostgreSQL 上の候補抽出キーとして扱えるかの最小検証です。
+- **polygon cover は bbox タイルカバーであり、厳密な polygon cover ではありません。** H3 polyfill / S2 covering と同等ではなく、recheck（PostGIS ST_Intersects / ST_Contains）が必須です。false positive 率の差分そのものが観察対象です。
+- zfxy には現時点で H3 / S2 のような成熟した covering / compact / neighbor traversal がないため、polygon cover と kNN は簡易実装 + PostGIS recheck 前提です。この不足点も比較の一部として記録します。
+
 ## ディレクトリ構成
 - `common/sql/`: 共通スキーマ（places / buildings）と Overture CSV 取り込み用 SQL
 - `common/bench/`: 共通ベンチ用 SQL（points / polygons）

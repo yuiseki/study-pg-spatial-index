@@ -83,3 +83,11 @@ bench-postgis-geohash:
 .PHONY: bench-pg-geohash
 bench-pg-geohash:
 	common/scripts/run_bench.sh pg-geohash
+
+.PHONY: up-zfxy
+up-zfxy:
+	docker compose --profile zfxy up -d --build
+
+.PHONY: bench-zfxy
+bench-zfxy:
+	common/scripts/run_bench.sh zfxy

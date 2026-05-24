@@ -56,6 +56,7 @@
 - GeoHash（pg_geohash / geohash-extra / 併せてPostGIS ST_GeoHashも利用可）
 - Q3C（q3c）
 - HEALPix（pg_healpix）
+- **zfxy**（追加済み、`systems/zfxy/`）
 
 #### 追加（球面幾何の別系統）
 - pgSphere（球面型 + GiST/BRIN）
@@ -128,6 +129,15 @@
 - [x] ベンチ用SQLを同一フォーマットで実行できるようにする
 
 ---
+
+## zfxy の位置づけと制約
+
+- zfxy は PostGIS の空間 AM ではなく、セル ID 列 + 通常インデックスによる空間キー設計として扱う。
+- 今回の MVP では高さ `h` は原則 0 とし、3D 性能ではなく、zfxy を PostgreSQL 上の候補抽出キーとして扱えるかを検証する。
+- zfxy には現時点で H3 / S2 のような成熟した covering / compact / uncompact / neighbor traversal がないため、polygon cover や kNN は簡易実装 + PostGIS recheck 前提である。
+  - polygon cover は bbox タイルカバーであり、false positive が多くなり得る。この差分自体が zfxy の現時点での弱点として観察対象になる。
+  - kNN は中心タイルからの矩形拡張であり、H3 ring expansion や PostGIS `<->` index と同等ではない。
+- この比較の目的は zfxy を否定または称賛することではなく、既存手法との差分を実測可能にすることである。
 
 ## 方式別の注釈（TODOに入れておくと親切）
 - [x] H3: `h3` と `h3_postgis` が分かれているので、PostGIS連携関数が必要なら両方入れる
